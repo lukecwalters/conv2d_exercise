@@ -14,18 +14,26 @@ class Conv2D(object):
 
     """
 
-    def __init__(self, kernel: np.ndarray, stride_h: int = 1, stride_w: int = 1):
+    def __init__(
+        self,
+        kernel: np.ndarray,
+        stride_h: int = 1,
+        stride_w: int = 1,
+        output_noise_var: float = 0.0,
+    ):
         """Instaniate a callable multichannel 2D convolution layer.
 
         Args:
             kernel (np.ndarray): A kernel of shape (Cout, Cin, Kw, Kh). Defaults to None.
             stride_h (int, optional): kernel stride along the height dimension. Defaults to 1.
             stride_w (int, optional): kernel stride along the width dimension. Defaults to 1.
+            output_noise_var (float, optional): variance of gaussian noise added to output tensor
         """
         self._warn_float32("kernel", kernel.dtype)
         self._kernel = kernel.astype(np.float32)
         self._stride_h = stride_h
         self._stride_w = stride_w
+        self._output_noise_std = np.sqrt(output_noise_var)
 
         self._fun = lib.conv2d
         N, Cin, H, W, Kh, Kw, stride_h, stride_w, Cout, Th, Tw = [ctypes.c_int] * 11
@@ -96,6 +104,15 @@ class Conv2D(object):
     def stride_w(self, stride_w: int):
         self._stride_w = stride_w
 
+    @property
+    def output_noise_var(self):
+        """Variance of output gaussian noise injection."""
+        return self._output_noise_std ** 2
+
+    @output_noise_var.setter
+    def output_noise_var(self, output_noise_var: float):
+        self._output_noise_std = np.sqrt(output_noise_var)
+
     @staticmethod
     def _warn_float32(name, dtype):
         if dtype != np.float32:
@@ -157,4 +174,10 @@ class Conv2D(object):
             y_scratch,
         )
 
+        if self._output_noise_std:
+            noise = self._output_noise_std * np.random.randn(*y_out.shape).astype(
+                np.float32
+            )
+
+            return y_out + noise
         return y_out

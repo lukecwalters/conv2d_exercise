@@ -10,7 +10,7 @@ gcc -fPIC -shared -o conv2d.so conv2d.c
 ```
 
 ## Testing
-A simple example/regression test is defined in `test_conv2d.py`, and exercises multiple random samplings of kernel, stride, and input tensor configurations, and tests each case against an all-python reference implementation. 
+A simple example/regression test is defined in `test_conv2d.py`, and exercises multiple random samplings of kernel, stride, and input tensor configurations, and tests each case against an all-python reference implementation.
 
 To execute run the following command:
 ```bash

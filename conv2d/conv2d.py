@@ -10,7 +10,8 @@ class Conv2D(object):
     """A class for performing multichannel 2D convolution via im2row-like tensor-multiplication.
 
     An instance is configured with a 4D kernel tensor with shape [Cout, Cin, Kh, Kw],
-    and optionally strides for the height and width dimensions.
+    and optionally strides for the height and width dimensions. One can also inject zero-mean
+    gaussian noise at each call by configuring a non-zero variance parameter.
 
     """
 
@@ -111,6 +112,7 @@ class Conv2D(object):
 
     @output_noise_var.setter
     def output_noise_var(self, output_noise_var: float):
+        assert output_noise_var >= 0.0, "Must assign a positive variance."
         self._output_noise_std = np.sqrt(output_noise_var)
 
     @staticmethod

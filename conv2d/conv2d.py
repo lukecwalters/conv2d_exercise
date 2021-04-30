@@ -1,21 +1,29 @@
 import ctypes
+import os
 import warnings
 import numpy as np
 
-lib = ctypes.cdll.LoadLibrary("./c/conv2d.so")
+lib = ctypes.cdll.LoadLibrary(os.path.join(os.path.dirname(__file__), "c/conv2d.so"))
 
 
 class Conv2D(object):
-    def __init__(self, kernel: np.ndarray = None, stride_h: int = 1, stride_w: int = 1):
+    """A class for performing multichannel 2D convolution via im2row-like tensor-multiplication.
+
+    An instance is configured with a 4D kernel tensor with shape [Cout, Cin, Kh, Kw],
+    and optionally strides for the height and width dimensions.
+
+    """
+
+    def __init__(self, kernel: np.ndarray, stride_h: int = 1, stride_w: int = 1):
         """Instaniate a callable multichannel 2D convolution layer.
 
         Args:
-            kernel (np.ndarray, optional): A kernel of shape (num_out_chs, num_in_chs, 
-                kernel_height, kernel_width). Defaults to None.
+            kernel (np.ndarray): A kernel of shape (Cout, Cin, Kw, Kh). Defaults to None.
             stride_h (int, optional): kernel stride along the height dimension. Defaults to 1.
             stride_w (int, optional): kernel stride along the width dimension. Defaults to 1.
         """
-        self._kernel = kernel
+        self._warn_float32("kernel", kernel.dtype)
+        self._kernel = kernel.astype(np.float32)
         self._stride_h = stride_h
         self._stride_w = stride_w
 
@@ -52,6 +60,13 @@ class Conv2D(object):
 
     @property
     def kernel(self):
+        """The instantance's kernel as an np.ndarray with dtype np.float32.
+
+        The setter will throw a warning and cast the provided kernel to np.float32 if not already.
+
+        Returns:
+            kernel: The 4D kernel tensor of shape [Cout, Cin, Kw, Kh].
+        """
         return self._kernel
 
     @kernel.setter
@@ -61,10 +76,11 @@ class Conv2D(object):
         ), "kernel must be a 4D tensor of shape [Cout, Cin, Kw, Kh]."
 
         self._warn_float32("kernel", kernel.dtype)
-        self._kernel = kernel.astype("float32")
+        self._kernel = kernel.astype(np.float32)
 
     @property
     def stride_h(self):
+        """The kernel's integer valued stride along the height dimension."""
         return self._stride_h
 
     @stride_h.setter
@@ -73,6 +89,7 @@ class Conv2D(object):
 
     @property
     def stride_w(self):
+        """The kernel's integer valued stride along the width dimension."""
         return self._stride_w
 
     @stride_w.setter
@@ -85,7 +102,17 @@ class Conv2D(object):
             warnings.warn(f"{name} had dtype={dtype} and was cast to np.float32.")
 
     def __call__(self, x_in: np.ndarray):
-        stride = 1
+        """Convolve the provided input tensor with the layer's kernel and stride config.
+
+        Args:
+            x_in (np.ndarray): An input tensor of shape (batch_size, num_in_chs, height, width).
+
+        Returns:
+            y_out (np.ndarray): An output tensor of shape (batch_size, num_out_chs, Th, Tw), where
+                Th and Tw are the number of [Kh, Kw,Cin] tiles computed along the height and width dimensions,
+                respectively. These are determined at run time as a function of the kernel, stride, and input
+                dimensions.
+        """
 
         N, Cin_x, H, W = x_in.shape
         Cout, Cin, Kh, Kw = self.kernel.shape
@@ -105,9 +132,11 @@ class Conv2D(object):
         )  # number of tiles in W dimension
 
         y_out = np.zeros([N, Cout, Th, Tw], dtype=np.float32)
+        # scratch tensors for 2D tensor multiplication
         x_scratch = np.zeros([N * Th * Tw, Kh * Kw * Cin], dtype=np.float32)
         k_scratch = np.zeros([Kh * Kw * Cin, Cout], dtype=np.float32)
         y_scratch = np.zeros([N * Tw * Th, Cout], dtype=np.float32)
+
         self._fun(
             N,
             Cin,
@@ -128,4 +157,4 @@ class Conv2D(object):
             y_scratch,
         )
 
-        return y_out, x_scratch, k_scratch, y_scratch
+        return y_out
